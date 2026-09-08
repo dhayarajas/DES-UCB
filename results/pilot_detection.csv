@@ -1,0 +1,4 @@
+agent,n_changes,detected,missed,mean_delay,median_delay,false_alarms_per_unit,total_firings
+A2,20,20,0,24.45,25.0,0.0,21
+B4,20,0,20,,,0.0,0
+DES-UCB,20,20,0,23.6,20.5,0.05,21
