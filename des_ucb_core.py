@@ -597,12 +597,14 @@ class DESUCBAgent(BaseAgent):
             self.prior_weight *= 0.5  # passive decay of the prior's influence
             return
         w = max(self.w_min, self.window // 2)
+        # the running BOB block is only spoiled if the window changes before the block is complete:
+        # on a block's last round every reward (including this one) was already drawn under bob_w
+        if w != self.window and (t + 1) % self.H != 0:
+            self.bob_w = None
+            self.block_rewards = []
         self.window = w
         self.F.set_window(w, t)
         self.F.purge_older_than(t - w + 1)  # same cutoff as the active window: keep s > t - w only
-        # the running BOB block no longer ran under a single window: discard it (no EXP3 update)
-        self.bob_w = None
-        self.block_rewards = []
         self.switch.reset_source("P")
         self.switch.force_feedback(self.B)
 

@@ -164,6 +164,17 @@ class _NeverFires:
         return False
 
 
+class _FiresAt:
+    """Detector stub: fires on the given (0-based) observe() calls, so drift runs inside observe()."""
+
+    def __init__(self, when):
+        self.when, self.n = set(when), 0
+
+    def update(self, e):
+        self.n += 1
+        return (self.n - 1) in self.when
+
+
 class _SpyBOB:
     """Records (window, block_reward) pairs; always picks the next window in a fixed cycle."""
 
@@ -207,11 +218,11 @@ def test_bob_block_credits_only_rewards_under_its_window(cfg, agent_name):
         assert g == pytest.approx(float(np.clip((k - lo) / (hi - lo), 0, 1)))
 
 
-def test_drift_mid_block_discards_bob_block(cfg):
-    cfg = C._deep_update(cfg, {"H": 10, "candidate_windows": [5, 20], "w_0": 8, "w_min": 2, "burn_in_B": 0})
+def _run_des_with_drift(cfg, fire_at, w_min=2):
+    cfg = C._deep_update(cfg, {"H": 10, "candidate_windows": [5, 20], "w_0": 8, "w_min": w_min, "burn_in_B": 0})
     ag = C.make_agent("DES-UCB", cfg["d"], (np.zeros((1, cfg["d"])), np.zeros(1)), cfg, seed=0)
     ag.bob = spy = _SpyBOB(cfg["candidate_windows"])
-    ag.detector = _NeverFires()
+    ag.detector = _FiresAt(fire_at)
     H = cfg["H"]
     rng = np.random.default_rng(0)
     windows_seen = []
@@ -220,11 +231,30 @@ def test_drift_mid_block_discards_bob_block(cfg):
         idx = ag.step(t, X)
         windows_seen.append(ag.F.window)
         ag.observe(t, X[idx], 1.0)
-        if t == H + 4:
-            ag.on_drift(t)  # window changes mid-block -> that block must not be credited to anyone
-    assert windows_seen[H + 4] != windows_seen[H + 5]
+    assert ag.fired_at == list(fire_at)
+    return ag, spy, windows_seen, H
+
+
+def test_drift_mid_block_discards_bob_block(cfg):
+    ag, spy, windows_seen, H = _run_des_with_drift(cfg, fire_at=[10 + 4])
+    assert windows_seen[H + 4] != windows_seen[H + 5]  # window changed mid-block
     assert len(spy.updates) == 1  # block 2 only (block 1 discarded); block 0 ran under w_0
     assert spy.updates[0][0] == windows_seen[2 * H] and len(set(windows_seen[2 * H:3 * H])) == 1
+
+
+def test_drift_on_block_last_round_keeps_bob_block(cfg):
+    # drift fires on round 2H-1: all H rewards of block 1 were drawn under bob_w -> still credited
+    ag, spy, windows_seen, H = _run_des_with_drift(cfg, fire_at=[2 * 10 - 1])
+    assert len(spy.updates) == 2
+    assert spy.updates[0][0] == windows_seen[H] and len(set(windows_seen[H:2 * H])) == 1
+    assert spy.updates[1][0] == windows_seen[2 * H]
+
+
+def test_drift_without_window_change_keeps_bob_block(cfg):
+    # block 2 runs under window 20 == w_min: suppression leaves it unchanged, block stays valid
+    ag, spy, windows_seen, H = _run_des_with_drift(cfg, fire_at=[2 * 10 + 4], w_min=20)
+    assert windows_seen[2 * H + 4] == windows_seen[2 * H + 5] == 20
+    assert [w for w, _ in spy.updates] == [windows_seen[H], windows_seen[2 * H]]
 
 
 # ---------------------------------------------------------------- agent vs B2 on stationary env
