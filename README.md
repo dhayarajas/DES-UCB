@@ -26,3 +26,18 @@ ruff check .                   # lint
 Claim verdicts live in `results/claims.json`; only bullets under *Supported* in
 `results/results_skeleton.md` may be written into the paper. Failed checks are reported as
 `NOT SUPPORTED`, not tuned away.
+
+## Manuscript
+
+LaTeX sources are in `paper/` (`main.tex` two-column, `main_onecol.tex` single-column, shared
+`body.tex`). Tables and macros come from `python scripts/build_paper_tables.py`.
+
+```bash
+cd paper && pdflatex main && bibtex main && pdflatex main && pdflatex main
+./build_docx.sh                       # main_onecol.docx (pandoc)
+pip install python-docx && python build_templates.py   # DES_UCB_IJIES.docx, DES_UCB_Futech.docx
+```
+
+`build_templates.py` pours the same body into the journal Word templates kept under
+`paper/templates/` (IJIES two-column format, Future Technology format), applying each
+template's layout rules (fonts, caption forms, abstract limits, back-matter sections).
