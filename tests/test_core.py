@@ -51,12 +51,33 @@ def test_feedback_eviction_on_shrink_and_purge():
     # exact recompute against the kept rows
     X = np.stack([x for _, x, _ in F.rows]); r = np.array([y for _, _, y in F.rows])
     np.testing.assert_allclose(F.theta(), np.linalg.solve(np.eye(d) + X.T @ X, X.T @ r), atol=1e-8)
+    # shrinking only changes the ACTIVE window: growing it again restores the retained rows exactly
+    F.set_window(30, t=49)
+    assert len(F) == 30 and F.rows[0][0] == 20
+    X = np.stack([x for _, x, _ in F.rows]); r = np.array([y for _, _, y in F.rows])
+    np.testing.assert_allclose(F.theta(), np.linalg.solve(np.eye(d) + X.T @ X, X.T @ r), atol=1e-8)
+    F.set_window(10, t=49)
+    assert len(F) == 10 and F.rows[0][0] == 40
+    # an explicit drift purge is irreversible
     F.purge_older_than(45)
     assert len(F) == 5 and F.rows[0][0] == 45
+    F.set_window(100, t=49)
+    assert len(F) == 5 and F.rows[0][0] == 45
+    F.set_window(10, t=49)
     # rolling eviction
     for t in range(50, 60):
         F.add_live(t, rng.standard_normal(d), 0.0)
     assert len(F) == 10 and F.rows[0][0] == 50
+    assert len(F.history) == 15 and F.history[0][0] == 45  # retained (max_history=100), not active
+
+
+def test_feedback_history_bounded_by_max_history():
+    F = C.FeedbackEstimator(3, window=5, max_history=20)
+    for t in range(100):
+        F.add_live(t, np.ones(3), 1.0)
+    assert len(F) == 5 and len(F.history) == 20
+    F.set_window(50, t=99)
+    assert len(F) == 20 and F.rows[0][0] == 80
 
 
 # ---------------------------------------------------------------- switch
@@ -136,6 +157,47 @@ def test_bob_favours_better_window():
         bob.update(w, 1.0 if w == 100 else 0.2)
     assert bob.probs()[1] > 0.7
     assert abs(bob.probs().sum() - 1) < 1e-9
+
+
+class _SpyBOB:
+    """Records (window, block_reward) pairs; always picks the next window in a fixed cycle."""
+
+    def __init__(self, windows):
+        self.windows, self.i, self.updates = list(windows), 0, []
+
+    def pick(self):
+        w = self.windows[self.i % len(self.windows)]
+        self.i += 1
+        return w
+
+    def update(self, w, g):
+        self.updates.append((w, g))
+
+
+@pytest.mark.parametrize("agent_name", ["DES-UCB", "B4"])
+def test_bob_block_credits_only_rewards_under_its_window(cfg, agent_name):
+    cfg = C._deep_update(cfg, {"H": 10, "candidate_windows": [5, 20], "w_0": 8, "burn_in_B": 0})
+    ag = C.make_agent(agent_name, cfg["d"], (np.zeros((1, cfg["d"])), np.zeros(1)), cfg, seed=0)
+    spy = _SpyBOB(cfg["candidate_windows"])
+    ag.bob = spy
+    H = cfg["H"]
+    est = ag.F if agent_name == "DES-UCB" else ag.est
+    rng = np.random.default_rng(0)
+    windows_seen = []
+    for t in range(4 * H):
+        X = rng.standard_normal((3, cfg["d"]))
+        idx = ag.step(t, X)
+        windows_seen.append(est.window)
+        ag.observe(t, X[idx], float(t // H))  # constant reward per block => unambiguous attribution
+    # block 0 runs under w_0; each later block runs entirely under the window picked at its start
+    assert windows_seen[:H] == [cfg["w_0"]] * H
+    for k in range(1, 4):
+        assert len(set(windows_seen[k * H:(k + 1) * H])) == 1
+    assert len(spy.updates) == 3
+    lo, hi = cfg.get("reward_range", (-2.0, 2.0))
+    for k, (w, g) in enumerate(spy.updates, start=1):
+        assert w == windows_seen[k * H]
+        assert g == pytest.approx(float(np.clip((k - lo) / (hi - lo), 0, 1)))
 
 
 # ---------------------------------------------------------------- agent vs B2 on stationary env
@@ -236,6 +298,30 @@ def test_metric_namespaces_never_mix():
         C.replay_reward(dyn.assign(counted=True))
     with pytest.raises(ValueError):
         C.dynamic_regret(pd.concat([dyn, off]))
+
+
+def test_cum_recall_requires_ordinal_user_index():
+    df = pd.DataFrame({"seed": 0, "user": [0, 0, 1, 1], "agent": "A", "reward": [1.0, 1.0, 0.0, 1.0],
+                       "regret_kind": "offline"})
+    ds = C.RatedDataset("x", np.zeros((1, 1)), {}, [1001, 1002], {}, {}, {}, pd.DataFrame(), 1,
+                        n_relevant={1001: 4, 1002: 2})
+    rec = C.cum_recall(df, ds.n_relevant_by_ordinal())
+    assert rec["A"] == pytest.approx((2 / 4 + 1 / 2) / 2)
+    with pytest.raises(KeyError):
+        C.cum_recall(df, pd.Series(ds.n_relevant))  # raw ids do not match the log's ordinals
+
+
+def test_download_refuses_unverified_tls(tmp_path, monkeypatch):
+    import requests
+
+    def boom(*a, **k):
+        assert k.get("verify", True) is True
+        raise requests.exceptions.SSLError("bad cert")
+
+    monkeypatch.setattr(requests, "get", boom)
+    with pytest.raises(RuntimeError, match="verification failed"):
+        C.download("https://example.invalid/x.zip", tmp_path / "x.zip")
+    assert not (tmp_path / "x.zip").exists() and not (tmp_path / "x.zip.part").exists()
 
 
 def test_replay_env_counts_only_matched_rounds():

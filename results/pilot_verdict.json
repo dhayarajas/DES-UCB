@@ -1,8 +1,8 @@
 {
- "detector_mean_delay": 23.6,
+ "detector_mean_delay": 21.1,
  "burn_in_B": 30,
  "detected_fraction": 1.0,
  "branch": "detector OK (delay <= B); suppression verdict deferred to section 13 (needs 5 seeds x 100 users)",
- "DES_minus_A2_regret": -4.51600706569112,
- "DES_minus_B4_regret": -1.8877090914151453
+ "DES_minus_A2_regret": -12.451845406488058,
+ "DES_minus_B4_regret": -6.311760443140482
 }

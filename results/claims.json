@@ -6,7 +6,7 @@
     "stats": {
       "min_per_round_regret": 0.0,
       "regret_B9": 0.0,
-      "regret_min_other": 48.596699772201745
+      "regret_min_other": 50.439051811528095
     }
   },
   "suppression": {
@@ -14,14 +14,14 @@
     "description": "dyn_regret[DES] < dyn_regret[A2 no_suppression] on abrupt drift with a stale (pre-drift) prior",
     "verdict": "SUPPORTED",
     "stats": {
-      "regret_DES": 48.596699772201745,
-      "regret_A2": 56.360869501306006,
-      "mean_diff": -7.7641697291042036,
-      "ci_lo": -8.965135959719879,
-      "ci_hi": -6.612703684058411,
+      "regret_DES": 50.439051811528095,
+      "regret_A2": 65.1170376451258,
+      "mean_diff": -14.6779858335977,
+      "ci_lo": -15.9526083290919,
+      "ci_hi": -13.433141308625371,
       "n_units": 500,
-      "detector_mean_delay": 21.224899598393574,
-      "detected_fraction": 0.996
+      "detector_mean_delay": 23.32364729458918,
+      "detected_fraction": 0.998
     }
   },
   "stale_ratio": {
@@ -29,11 +29,11 @@
     "description": "post-change rounds conditioned on P: DES < A2",
     "verdict": "SUPPORTED",
     "stats": {
-      "stale_DES": 0.07066714285714286,
-      "stale_A2": 0.09772428571428571,
-      "mean_diff": -0.027057142857142856,
-      "ci_lo": -0.03111867857142857,
-      "ci_hi": -0.023258535714285718
+      "stale_DES": 0.07039857142857144,
+      "stale_A2": 0.09871428571428573,
+      "mean_diff": -0.028315714285714284,
+      "ci_lo": -0.032483,
+      "ci_hi": -0.02455442857142858
     }
   },
   "not_redundant": {
@@ -41,11 +41,11 @@
     "description": "purge+reset+burn-in beats passive decay of the prior (A5)",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "regret_DES": 48.596699772201745,
-      "regret_A5_decay": 36.48101808373954,
-      "mean_diff": 12.115681688462233,
-      "ci_lo": 11.171069823904054,
-      "ci_hi": 12.997651296773972
+      "regret_DES": 50.439051811528095,
+      "regret_A5_decay": 47.26324972098633,
+      "mean_diff": 3.1758020905417808,
+      "ci_lo": 1.9037842333170338,
+      "ci_hi": 4.353234215681397
     }
   },
   "suppression_mis": {
@@ -53,11 +53,11 @@
     "description": "same as `suppression` under p_mismatch=0.2 with a population (not pre-drift) prior",
     "verdict": "SUPPORTED",
     "stats": {
-      "regret_DES": 77.07936361415362,
-      "regret_A2": 84.42603959116941,
-      "mean_diff": -7.346675977015673,
-      "ci_lo": -8.42194218438953,
-      "ci_hi": -6.264316760826046
+      "regret_DES": 78.56122406533756,
+      "regret_A2": 93.29514954581703,
+      "mean_diff": -14.733925480479392,
+      "ci_lo": -16.023681585816718,
+      "ci_hi": -13.448556934263268
     }
   },
   "no_harm": {
@@ -65,10 +65,10 @@
     "description": "dyn_regret[DES] <= 1.10 * dyn_regret[B2 warm LinUCB] with no drift",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "regret_DES": 12.144079006844324,
+      "regret_DES": 11.136651022067612,
       "regret_B2": 1.6224510803333223,
-      "ratio": 7.48502013653897,
-      "F_fraction_DES": 0.459181
+      "ratio": 6.864090484490699,
+      "F_fraction_DES": 0.516145
     }
   },
   "rate": {
@@ -76,8 +76,8 @@
     "description": "log-log regret slope on sinusoidal drift: DES <= B4 + 0.05",
     "verdict": "SUPPORTED",
     "stats": {
-      "slope_DES": 1.1386370143081421,
-      "slope_B4": 1.163661493008603,
+      "slope_DES": 1.1680587954526207,
+      "slope_B4": 1.2066781612762816,
       "checkpoints": [
         250,
         500,
@@ -92,11 +92,11 @@
     "description": "ML-1M protocol B: cum_precision@40[DES] >= cum_precision@40[B2]",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "cum_precision@40_DES": 0.7161016949152542,
+      "cum_precision@40_DES": 0.7194915254237289,
       "cum_precision@40_B2": 0.7496610169491524,
-      "mean_diff": -0.0335593220338983,
-      "ci_lo": -0.039239406779661014,
-      "ci_hi": -0.027711864406779665,
+      "mean_diff": -0.030169491525423725,
+      "ci_lo": -0.03517161016949153,
+      "ci_hi": -0.024913135593220347,
       "n_users": 295
     }
   }

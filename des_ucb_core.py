@@ -150,30 +150,57 @@ class PriorEstimator(RidgeUCB):
 
 
 class FeedbackEstimator(RidgeUCB):
-    """F: feedback-driven evidence.  Sliding-window ridge on this user's live rows."""
+    """F: feedback-driven evidence.  Sliding-window ridge on this user's live rows.
 
-    def __init__(self, d, lam=1.0, beta=0.5, S=5.0, window: int = 400):
+    The ridge state covers exactly the rows with timestamp s > t - window (``rows``).  Rows that
+    leave the window are kept in ``history`` (up to ``max_history`` most recent) so a later, larger
+    window can be rebuilt exactly; ``purge_older_than`` (drift suppression) drops them for good.
+    """
+
+    def __init__(self, d, lam=1.0, beta=0.5, S=5.0, window: int = 400, max_history: Optional[int] = None):
         super().__init__(d, lam, beta, S)
         self.window = int(window)
-        self.rows: deque = deque()  # (t, x, r)
+        self.max_history = int(max_history) if max_history is not None else self.window
+        self.history: deque = deque()  # (t, x, r), oldest first; a suffix of it is active
+        self.rows: deque = deque()     # active rows (s > t - window)
 
-    def _evict_before(self, t_cut: int) -> None:
-        """Evict every row with timestamp s <= t_cut - 1, i.e. s < t_cut."""
+    def _sync(self, t: int) -> None:
+        """Make ``rows`` equal to the history rows with s > t - window."""
+        t_cut = int(t) - self.window + 1  # keep s >= t_cut
         while self.rows and self.rows[0][0] < t_cut:
             _, x, r = self.rows.popleft()
             self.remove(x, r)
+        first_active = self.rows[0][0] if self.rows else int(t) + 1
+        # rows in history with t_cut <= s < first_active have to be re-added (window grew)
+        for s, x, r in reversed(self.history):
+            if s >= first_active:
+                continue
+            if s < t_cut:
+                break
+            self.rows.appendleft((s, x, r))
+            self.add(x, r)
+        while len(self.history) > max(self.max_history, len(self.rows)):
+            self.history.popleft()
 
     def add_live(self, t: int, x: np.ndarray, r: float) -> None:
-        self.rows.append((int(t), np.asarray(x, float), float(r)))
+        row = (int(t), np.asarray(x, float), float(r))
+        self.history.append(row)
+        self.rows.append(row)
         self.add(x, r)
-        self._evict_before(t - self.window + 1)  # evicts s <= t - window
+        self._sync(t)
 
     def set_window(self, w: int, t: int) -> None:
         self.window = int(max(1, w))
-        self._evict_before(t - self.window + 1)
+        self._sync(t)
 
     def purge_older_than(self, t0: int) -> None:
-        self._evict_before(int(t0))
+        """Irreversibly drop every row with s < t0 (drift suppression)."""
+        t0 = int(t0)
+        while self.history and self.history[0][0] < t0:
+            self.history.popleft()
+        while self.rows and self.rows[0][0] < t0:
+            _, x, r = self.rows.popleft()
+            self.remove(x, r)
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -463,7 +490,8 @@ class DESUCBAgent(BaseAgent):
         self.rng = rng if rng is not None else np.random.default_rng(cfg.get("seed", 0))
         lam, beta, S = cfg["lam"], cfg["beta"], cfg["S"]
         self.P = PriorEstimator(d, lam, beta, S, alpha=cfg.get("alpha_prior_mix", 0.0)).fit_from(D_prior)
-        self.F = FeedbackEstimator(d, lam, beta, S, window=cfg["w_0"])
+        self.F = FeedbackEstimator(d, lam, beta, S, window=cfg["w_0"],
+                                   max_history=max([cfg["w_0"], *cfg["candidate_windows"]]))
         sw = cfg["switch"]
         kind = self.flags.switch_kind or sw["kind"]
         self.switch = EvidenceSwitch(kind, sw["c"], sw["gamma"], sw["G"], rng=self.rng)
@@ -544,17 +572,16 @@ class DESUCBAgent(BaseAgent):
         e = (r - pred_m) ** 2
         if not self.flags.no_detector and self.detector.update(e):
             self.on_drift(t)
-        # 5. bandit-over-bandit window selection
+        # 5. bandit-over-bandit window selection: blocks are [kH, (k+1)H); at the last round of a
+        #    block credit the window that was active for the whole block, then pick the next one
         self.block_rewards.append(r)
-        if not self.flags.no_bob:
-            if t > 0 and t % self.H == 0 and self.bob_w is not None:
-                br = float(np.mean(self.block_rewards)) if self.block_rewards else 0.0
-                self.bob.update(self.bob_w, self._reward01(br))
-                self.block_rewards = []
-            if t % self.H == 1:
-                self.bob_w = self.bob.pick()
-                self.window = self.bob_w
-                self.F.set_window(self.bob_w, t)
+        if not self.flags.no_bob and (t + 1) % self.H == 0:
+            if self.bob_w is not None:
+                self.bob.update(self.bob_w, self._reward01(float(np.mean(self.block_rewards))))
+            self.block_rewards = []
+            self.bob_w = self.bob.pick()
+            self.window = self.bob_w
+            self.F.set_window(self.bob_w, t)
         self.trace.append(m)
 
     def _reward01(self, r: float) -> float:
@@ -621,7 +648,8 @@ class BOBAgent(BaseAgent):
         super().__init__()
         self.cfg = cfg
         rng = rng if rng is not None else np.random.default_rng(cfg.get("seed", 0))
-        self.est = FeedbackEstimator(d, cfg["lam"], cfg["beta"], cfg["S"], window=cfg["w_0"])
+        self.est = FeedbackEstimator(d, cfg["lam"], cfg["beta"], cfg["S"], window=cfg["w_0"],
+                                     max_history=max([cfg["w_0"], *cfg["candidate_windows"]]))
         self.bob = BOBWindowSelector(cfg["candidate_windows"], cfg["H"], cfg["bob_gamma"], rng=rng)
         self.H = int(cfg["H"])
         self.window = int(cfg["w_0"])
@@ -635,12 +663,11 @@ class BOBAgent(BaseAgent):
     def observe(self, t, x, r):
         self.est.add_live(t, x, r)
         self.block.append(r)
-        if t > 0 and t % self.H == 0 and self.bob_w is not None:
-            lo, hi = self.cfg.get("reward_range", (-2.0, 2.0))
-            br = float(np.clip((np.mean(self.block) - lo) / (hi - lo), 0, 1))
-            self.bob.update(self.bob_w, br)
+        if (t + 1) % self.H == 0:
+            if self.bob_w is not None:
+                lo, hi = self.cfg.get("reward_range", (-2.0, 2.0))
+                self.bob.update(self.bob_w, float(np.clip((np.mean(self.block) - lo) / (hi - lo), 0, 1)))
             self.block = []
-        if t % self.H == 1:
             self.bob_w = self.bob.pick()
             self.window = self.bob_w
             self.est.set_window(self.window, t)
@@ -1360,10 +1387,16 @@ def cum_precision_per_unit(df: pd.DataFrame, k: int) -> pd.DataFrame:
 
 
 def cum_recall(df: pd.DataFrame, n_relevant: pd.Series) -> pd.Series:
-    """REAL. hits over T divided by the user's number of relevant (rating>=4 / clicked) items."""
+    """REAL. hits over T divided by the user's number of relevant (rating>=4 / clicked) items.
+
+    ``n_relevant`` must be indexed by the ordinal ``user`` column of the log (0..n_users-1), e.g.
+    ``RatedDataset.n_relevant_by_ordinal()``; raw dataset ids are rejected."""
     _assert_kind(df, "offline")
     hits = df.groupby(["seed", "user", "agent"], observed=True)["reward"].sum().reset_index()
     hits["n_rel"] = hits["user"].map(n_relevant)
+    if hits["n_rel"].isna().any():
+        missing = sorted(hits.loc[hits["n_rel"].isna(), "user"].unique())[:5]
+        raise KeyError(f"cum_recall: no n_relevant for log users {missing}; index it by ordinal user")
     hits["recall"] = hits["reward"] / hits["n_rel"].clip(lower=1)
     return hits.groupby("agent", observed=True)["recall"].mean().rename("cum_recall@T")
 
@@ -1456,27 +1489,25 @@ MIND_OFFICIAL = "https://mind201910small.blob.core.windows.net/release/MINDsmall
 
 
 def download(url: str, dest: Path, chunk: int = 1 << 20) -> Path:
-    """Download with requests; verify TLS, and fall back to an unverified download (with a loud
-    warning) only if the certificate chain cannot be validated on this machine."""
+    """Download with requests over verified TLS.  A certificate failure is an error: place the
+    file at ``dest`` by hand instead of disabling verification."""
     import requests
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.stat().st_size > 0:
         return dest
     tmp = dest.with_suffix(dest.suffix + ".part")
-    for verify in (True, False):
-        try:
-            with requests.get(url, stream=True, timeout=120, verify=verify) as r:
-                r.raise_for_status()
-                with open(tmp, "wb") as f:
-                    for c in r.iter_content(chunk):
-                        f.write(c)
-            if not verify:
-                warnings.warn(f"TLS verification FAILED for {url}; downloaded without verification.")
-            tmp.rename(dest)
-            return dest
-        except requests.exceptions.SSLError:
-            continue
-    raise RuntimeError(f"could not download {url}")
+    try:
+        with requests.get(url, stream=True, timeout=120) as r:
+            r.raise_for_status()
+            with open(tmp, "wb") as f:
+                for c in r.iter_content(chunk):
+                    f.write(c)
+    except requests.exceptions.SSLError as e:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"TLS certificate verification failed for {url}; refusing an unverified download. "
+                           f"Download it manually to {dest}.") from e
+    tmp.rename(dest)
+    return dest
 
 
 def _stats_table(name: str, df: pd.DataFrame, user_col="user", item_col="item", time_col="ts") -> pd.DataFrame:
@@ -1537,7 +1568,11 @@ class RatedDataset:
     cohort_rows: Dict[str, Tuple[np.ndarray, np.ndarray]]  # cohort -> (X, r) from TRAIN users
     stats: pd.DataFrame
     d: int = 0
-    n_relevant: Dict[int, int] = field(default_factory=dict)
+    n_relevant: Dict[int, int] = field(default_factory=dict)  # keyed by RAW dataset user id
+
+    def n_relevant_by_ordinal(self) -> pd.Series:
+        """Recall denominators keyed the way the runner logs users: ordinal index into test_users."""
+        return pd.Series({i: self.n_relevant.get(u, 0) for i, u in enumerate(self.test_users)}, dtype=int)
 
     def prior_for(self, user: int, n_rows: int, rng: np.random.Generator, mismatch: bool = False):
         coh = self.cohort_of[user]
