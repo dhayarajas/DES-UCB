@@ -5,3 +5,9 @@ __pycache__/
 .ipynb_checkpoints/
 *.pyc
 results/*.parquet
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/.body_docx.tex
