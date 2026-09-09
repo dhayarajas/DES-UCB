@@ -1,0 +1,75 @@
+# DES-UCB default configuration (spec section 15).
+seed: 0
+n_seeds: 5
+n_users: 100
+T: 2000
+d: 16
+N_items: 500
+K_cand: 20
+lam: 1.0
+beta: 0.5
+S: 5.0
+switch:
+  kind: exp3        # exp3 (default) | ucb1 (ablation A7)
+  gamma: 0.1
+  c: 1.0
+  G: 1.0
+alpha_prior_mix: 0.0
+w_0: 400
+w_min: 50
+candidate_windows: [50, 100, 200, 400, 800]
+H: 100
+bob_gamma: 0.1
+burn_in_B: 30
+reward_range: [-2.0, 2.0]   # used to map block rewards into [0,1] for BOB's EXP3
+detector:
+  type: page_hinkley   # page_hinkley | adwin
+  delta: 0.005
+  # Spec default was 50; the pilot (notebook §6) showed 0/20 firings at 50 on squared residuals of
+  # rewards with sigma_reward=0.1 -> decision-table branch "DETECTION FAILURE: tune PH threshold,
+  # retest". Retuned to 1.0: 20/20 detected, mean delay 24.5 < burn_in_B, 0 false alarms on drift=none.
+  lam_threshold: 1.0
+  alpha_forget: 0.999
+  min_instances: 30
+prior:
+  K_cohorts: 8
+  n_prior_rows: 200
+  sigma_prior: 0.1
+  p_mismatch: 0.0
+  prior_from_pre_drift: true
+drift:
+  type: abrupt          # none | abrupt | gradual | recurring | incremental | sinusoidal
+  change_points: [600, 1300]
+  magnitude: 1.0
+  sigma_reward: 0.1
+  reward_model: gaussian   # gaussian | bernoulli
+  gradual_G: 300
+  recurring_P: 500
+  incremental_eps: 0.01
+  sinusoidal_period: 500
+baselines:
+  sw_window: 400          # B3 fixed sliding window
+  discount_gamma: 0.995   # B5 discounted LinUCB
+datasets:
+  movielens_1m: true
+  movielens_100k_smoke: true
+  mind_small: true
+  netflix: false
+  yahoo_r6_path: null
+  amazon_2023: false
+  kuairand: false
+  kuairand_path: null
+  netflix_path: null
+# Per-experiment sizes.  The claim registry (section 13) uses the full n_seeds x n_users x T
+# above; the exploratory grids below are scaled down so that "Restart & Run All" fits the
+# 30-minute laptop budget.  Every number here is a *configuration*, not a result.
+experiments:
+  pilot:      {n_seeds: 1, n_users: 20,  T: 1000, change_points: [500]}
+  grid:       {n_seeds: 2, n_users: 30,  T: 2000}
+  ablation:   {n_seeds: 2, n_users: 30,  T: 2000}
+  sweep:      {n_seeds: 2, n_users: 20,  T: 1500}
+  phase:      {n_seeds: 2, n_users: 20,  T: 1500,
+               magnitudes: [0.25, 0.5, 1.0, 2.0], n_prior_rows: [25, 50, 100, 200, 400]}
+  rate:       {n_seeds: 3, n_users: 20,  T: 4000, checkpoints: [250, 500, 1000, 2000, 4000]}
+  claims:     {n_seeds: 5, n_users: 100, T: 2000}
+n_jobs: -1   # multiprocessing workers (-1 = all cores)
