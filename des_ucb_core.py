@@ -599,7 +599,10 @@ class DESUCBAgent(BaseAgent):
         w = max(self.w_min, self.window // 2)
         self.window = w
         self.F.set_window(w, t)
-        self.F.purge_older_than(t - w)
+        self.F.purge_older_than(t - w + 1)  # same cutoff as the active window: keep s > t - w only
+        # the running BOB block no longer ran under a single window: discard it (no EXP3 update)
+        self.bob_w = None
+        self.block_rewards = []
         self.switch.reset_source("P")
         self.switch.force_feedback(self.B)
 

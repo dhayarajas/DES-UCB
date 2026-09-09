@@ -3,6 +3,6 @@
  "burn_in_B": 30,
  "detected_fraction": 1.0,
  "branch": "detector OK (delay <= B); suppression verdict deferred to section 13 (needs 5 seeds x 100 users)",
- "DES_minus_A2_regret": -12.451845406488058,
- "DES_minus_B4_regret": -6.311760443140482
+ "DES_minus_A2_regret": -12.46876665339674,
+ "DES_minus_B4_regret": -6.328681690049163
 }
