@@ -1,0 +1,14 @@
+\begin{tabular}{llp{0.42\linewidth}l}
+\toprule
+Claim & Verdict & Test & Key statistic \\
+\midrule
+\texttt{sanity\_oracle} & supported & oracle expected reward $\ge$ every agent's expected reward, every round & min regret 0.00 \\
+\texttt{suppression} & supported & dyn\_regret[DES] $<$ dyn\_regret[A2 no\_suppression] on abrupt drift with a stale (pre-drift) prior & $\Delta$ -14.7 [-16.0, -13.5] \\
+\texttt{stale\_ratio} & supported & post-change rounds conditioned on P: DES $<$ A2 & $\Delta$ -0.028 [-0.032, -0.025] \\
+\texttt{not\_redundant} & not supported & purge+reset+burn-in beats passive decay of the prior (A5) & $\Delta$ 3.1 [1.8, 4.3] \\
+\texttt{suppression\_mis} & supported & same as suppression under p\_mismatch=0.2 with a population (not pre-drift) prior & $\Delta$ -14.7 [-16.0, -13.4] \\
+\texttt{no\_harm} & not supported & dyn\_regret[DES] $\le$ 1.10 * dyn\_regret[B2 warm LinUCB] with no drift & ratio 6.86 \\
+\texttt{rate} & supported & log-log regret slope on sinusoidal drift: DES $\le$ B4 + 0.05 & slopes 1.164 vs 1.207 \\
+\texttt{real\_precision} & not supported & ML-1M protocol B: cum\_precision@\,40[DES] $\ge$ cum\_precision@\,40[B2] & $\Delta$ -0.031 [-0.036, -0.026] \\
+\bottomrule
+\end{tabular}
