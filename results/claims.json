@@ -6,7 +6,7 @@
     "stats": {
       "min_per_round_regret": 0.0,
       "regret_B9": 0.0,
-      "regret_min_other": 50.439051811528095
+      "regret_min_other": 50.37550205700959
     }
   },
   "suppression": {
@@ -14,14 +14,14 @@
     "description": "dyn_regret[DES] < dyn_regret[A2 no_suppression] on abrupt drift with a stale (pre-drift) prior",
     "verdict": "SUPPORTED",
     "stats": {
-      "regret_DES": 50.439051811528095,
+      "regret_DES": 50.37550205700959,
       "regret_A2": 65.1170376451258,
-      "mean_diff": -14.6779858335977,
-      "ci_lo": -15.9526083290919,
-      "ci_hi": -13.433141308625371,
+      "mean_diff": -14.741535588116207,
+      "ci_lo": -16.045628151182065,
+      "ci_hi": -13.508062144495725,
       "n_units": 500,
-      "detector_mean_delay": 23.32364729458918,
-      "detected_fraction": 0.998
+      "detector_mean_delay": 22.68405215646941,
+      "detected_fraction": 0.997
     }
   },
   "stale_ratio": {
@@ -29,11 +29,11 @@
     "description": "post-change rounds conditioned on P: DES < A2",
     "verdict": "SUPPORTED",
     "stats": {
-      "stale_DES": 0.07039857142857144,
+      "stale_DES": 0.07042714285714285,
       "stale_A2": 0.09871428571428573,
-      "mean_diff": -0.028315714285714284,
-      "ci_lo": -0.032483,
-      "ci_hi": -0.02455442857142858
+      "mean_diff": -0.02828714285714286,
+      "ci_lo": -0.032439,
+      "ci_hi": -0.02452442857142858
     }
   },
   "not_redundant": {
@@ -41,11 +41,11 @@
     "description": "purge+reset+burn-in beats passive decay of the prior (A5)",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "regret_DES": 50.439051811528095,
+      "regret_DES": 50.37550205700959,
       "regret_A5_decay": 47.26324972098633,
-      "mean_diff": 3.1758020905417808,
-      "ci_lo": 1.9037842333170338,
-      "ci_hi": 4.353234215681397
+      "mean_diff": 3.1122523360232743,
+      "ci_lo": 1.828638832860382,
+      "ci_hi": 4.316192755089058
     }
   },
   "suppression_mis": {
@@ -53,11 +53,11 @@
     "description": "same as `suppression` under p_mismatch=0.2 with a population (not pre-drift) prior",
     "verdict": "SUPPORTED",
     "stats": {
-      "regret_DES": 78.56122406533756,
+      "regret_DES": 78.54135372546,
       "regret_A2": 93.29514954581703,
-      "mean_diff": -14.733925480479392,
-      "ci_lo": -16.023681585816718,
-      "ci_hi": -13.448556934263268
+      "mean_diff": -14.753795820356888,
+      "ci_lo": -16.04656764081244,
+      "ci_hi": -13.464634725297364
     }
   },
   "no_harm": {
@@ -65,9 +65,9 @@
     "description": "dyn_regret[DES] <= 1.10 * dyn_regret[B2 warm LinUCB] with no drift",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "regret_DES": 11.136651022067612,
+      "regret_DES": 11.135272956346862,
       "regret_B2": 1.6224510803333223,
-      "ratio": 6.864090484490699,
+      "ratio": 6.863241111750002,
       "F_fraction_DES": 0.516145
     }
   },
@@ -76,7 +76,7 @@
     "description": "log-log regret slope on sinusoidal drift: DES <= B4 + 0.05",
     "verdict": "SUPPORTED",
     "stats": {
-      "slope_DES": 1.1680587954526207,
+      "slope_DES": 1.1644330842270032,
       "slope_B4": 1.2066781612762816,
       "checkpoints": [
         250,
@@ -92,11 +92,11 @@
     "description": "ML-1M protocol B: cum_precision@40[DES] >= cum_precision@40[B2]",
     "verdict": "NOT SUPPORTED",
     "stats": {
-      "cum_precision@40_DES": 0.7194915254237289,
+      "cum_precision@40_DES": 0.7184745762711864,
       "cum_precision@40_B2": 0.7496610169491524,
-      "mean_diff": -0.030169491525423725,
-      "ci_lo": -0.03517161016949153,
-      "ci_hi": -0.024913135593220347,
+      "mean_diff": -0.0311864406779661,
+      "ci_lo": -0.03644279661016949,
+      "ci_hi": -0.025930084745762718,
       "n_users": 295
     }
   }

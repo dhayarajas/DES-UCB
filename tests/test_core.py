@@ -159,6 +159,11 @@ def test_bob_favours_better_window():
     assert abs(bob.probs().sum() - 1) < 1e-9
 
 
+class _NeverFires:
+    def update(self, e):
+        return False
+
+
 class _SpyBOB:
     """Records (window, block_reward) pairs; always picks the next window in a fixed cycle."""
 
@@ -182,6 +187,8 @@ def test_bob_block_credits_only_rewards_under_its_window(cfg, agent_name):
     ag.bob = spy
     H = cfg["H"]
     est = ag.F if agent_name == "DES-UCB" else ag.est
+    if agent_name == "DES-UCB":
+        ag.detector = _NeverFires()  # the per-block reward jumps below would otherwise trigger drift
     rng = np.random.default_rng(0)
     windows_seen = []
     for t in range(4 * H):
@@ -198,6 +205,26 @@ def test_bob_block_credits_only_rewards_under_its_window(cfg, agent_name):
     for k, (w, g) in enumerate(spy.updates, start=1):
         assert w == windows_seen[k * H]
         assert g == pytest.approx(float(np.clip((k - lo) / (hi - lo), 0, 1)))
+
+
+def test_drift_mid_block_discards_bob_block(cfg):
+    cfg = C._deep_update(cfg, {"H": 10, "candidate_windows": [5, 20], "w_0": 8, "w_min": 2, "burn_in_B": 0})
+    ag = C.make_agent("DES-UCB", cfg["d"], (np.zeros((1, cfg["d"])), np.zeros(1)), cfg, seed=0)
+    ag.bob = spy = _SpyBOB(cfg["candidate_windows"])
+    ag.detector = _NeverFires()
+    H = cfg["H"]
+    rng = np.random.default_rng(0)
+    windows_seen = []
+    for t in range(3 * H):
+        X = rng.standard_normal((3, cfg["d"]))
+        idx = ag.step(t, X)
+        windows_seen.append(ag.F.window)
+        ag.observe(t, X[idx], 1.0)
+        if t == H + 4:
+            ag.on_drift(t)  # window changes mid-block -> that block must not be credited to anyone
+    assert windows_seen[H + 4] != windows_seen[H + 5]
+    assert len(spy.updates) == 1  # block 2 only (block 1 discarded); block 0 ran under w_0
+    assert spy.updates[0][0] == windows_seen[2 * H] and len(set(windows_seen[2 * H:3 * H])) == 1
 
 
 # ---------------------------------------------------------------- agent vs B2 on stationary env
@@ -247,8 +274,14 @@ def test_drift_suppression_purges_and_forces_F(cfg):
         X = env.candidates(t); i = a.step(t, X); a.observe(t, X[i], env.reward(t, i))
     n_before = len(a.F)
     a.on_drift(299)
-    assert len(a.F) <= a.window and a.window == max(cfg["w_min"], cfg["w_0"] // 2)
+    w = max(cfg["w_min"], cfg["w_0"] // 2)
+    assert len(a.F) <= a.window and a.window == w
     assert len(a.F) < n_before
+    # purge boundary matches the active window: nothing older than 299 - w + 1 survives, even in history
+    assert a.F.rows[0][0] == 299 - w + 1 and a.F.history[0][0] == 299 - w + 1
+    a.F.set_window(cfg["w_0"], 299)
+    assert len(a.F) == w and a.F.rows[0][0] == 299 - w + 1
+    a.F.set_window(w, 299)
     for t in range(200, 200 + cfg["burn_in_B"]):
         X = env.candidates(t); i = a.step(t, X)
         assert a.source == "F"
